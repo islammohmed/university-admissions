@@ -22,6 +22,7 @@ public class AdmissionDbContext : DbContext
     public DbSet<EducationDocument> EducationDocuments { get; set; }
     public DbSet<EducationDocumentType> EducationDocumentTypes { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<Entities.File> Files { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +45,7 @@ public class AdmissionDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FullName).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Email).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ManagerType).IsRequired();
             entity.HasOne(e => e.Faculty)
                 .WithMany(f => f.Managers)
                 .HasForeignKey(e => e.FacultyId)
@@ -90,10 +92,17 @@ public class AdmissionDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Priority).IsRequired();
             
+            entity.HasOne(e => e.ApplicantAdmission)
+                .WithMany(aa => aa.AdmissionPrograms)
+                .HasForeignKey(e => e.ApplicantAdmissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
             entity.HasOne(e => e.EducationProgram)
                 .WithMany(ep => ep.AdmissionPrograms)
                 .HasForeignKey(e => e.EducationProgramId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasIndex(e => new { e.ApplicantAdmissionId, e.EducationProgramId });
         });
 
         // ApplicantAdmission configuration
@@ -134,6 +143,11 @@ public class AdmissionDbContext : DbContext
                 .WithMany(a => a.Documents)
                 .HasForeignKey(e => e.ApplicantId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.File)
+                .WithMany(f => f.Documents)
+                .HasForeignKey(e => e.FileId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Passport configuration
@@ -149,6 +163,27 @@ public class AdmissionDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            
+            // First relationship: BelongsToLevel
+            entity.HasOne(e => e.BelongsToLevel)
+                .WithMany()
+                .HasForeignKey(e => e.BelongsToLevelId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Second relationship: NextAvailableLevels (many-to-many)
+            entity.HasMany(e => e.NextAvailableLevels)
+                .WithMany()
+                .UsingEntity<Dictionary<string, object>>(
+                    "EducationDocumentTypeNextLevels",
+                    j => j.HasOne<EducationLevel>()
+                        .WithMany()
+                        .HasForeignKey("NextLevelId")
+                        .OnDelete(DeleteBehavior.Restrict),
+                    j => j.HasOne<EducationDocumentType>()
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                );
         });
 
         // EducationDocument configuration
@@ -171,6 +206,18 @@ public class AdmissionDbContext : DbContext
             entity.Property(e => e.UserEmail).HasMaxLength(100).IsRequired();
             entity.HasIndex(e => e.IsSent);
             entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // File configuration
+        modelBuilder.Entity<Entities.File>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.FileName).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FilePath).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.MimeType).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.StorageLocation).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.FileSize).IsRequired();
+            entity.HasIndex(e => e.FilePath);
         });
     }
 }

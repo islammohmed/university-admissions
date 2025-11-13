@@ -19,12 +19,15 @@ public class NotificationDbContext : DbContext
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
-            entity.Property(e => e.UserId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.UserEmail).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.To).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Subject).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Body).IsRequired();
+            entity.Property(e => e.ApplicantId).HasMaxLength(100);
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
             entity.Property(e => e.ErrorMessage).HasMaxLength(500);
-            entity.HasIndex(e => e.IsSent);
+            entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.ApplicantId);
         });
     }
 }

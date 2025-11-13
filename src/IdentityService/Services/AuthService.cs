@@ -1,10 +1,7 @@
 using IdentityService.DTOs;
 using IdentityService.Models;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 
 namespace IdentityService.Services;
 
@@ -12,16 +9,16 @@ public class AuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly IConfiguration _configuration;
+    private readonly TokenService _tokenService;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IConfiguration configuration)
+        TokenService tokenService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
-        _configuration = configuration;
+        _tokenService = tokenService;
     }
 
     public async Task<(bool Success, string? Error, AuthResponse? Response)> RegisterAsync(RegisterRequest request)
@@ -50,21 +47,24 @@ public class AuthService
         // Add role claim
         await _userManager.AddClaimAsync(user, new Claim(ClaimTypes.Role, request.Role.ToString()));
 
-        var token = GenerateJwtToken(user);
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = await _tokenService.GenerateRefreshTokenAsync(user.Id);
+
         var response = new AuthResponse
         {
-            Token = token,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken.Token,
+            ExpiresIn = 900, // 15 minutes in seconds
             UserId = user.Id,
             Email = user.Email!,
             FullName = user.FullName,
-            Role = user.Role.ToString(),
-            ExpiresAt = DateTime.UtcNow.AddHours(24)
+            Role = user.Role.ToString()
         };
 
         return (true, null, response);
     }
 
-    public async Task<(bool Success, string? Error, AuthResponse? Response)> LoginAsync(LoginRequest request)
+    public async Task<(bool Success, string? Error, AuthResponse? Response)> LoginAsync(LoginRequest request, string? deviceInfo = null)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user == null)
@@ -78,42 +78,20 @@ public class AuthService
             return (false, "Invalid email or password", null);
         }
 
-        var token = GenerateJwtToken(user);
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = await _tokenService.GenerateRefreshTokenAsync(user.Id, deviceInfo);
+
         var response = new AuthResponse
         {
-            Token = token,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken.Token,
+            ExpiresIn = 900, // 15 minutes in seconds
             UserId = user.Id,
             Email = user.Email!,
             FullName = user.FullName,
-            Role = user.Role.ToString(),
-            ExpiresAt = DateTime.UtcNow.AddHours(24)
+            Role = user.Role.ToString()
         };
 
         return (true, null, response);
-    }
-
-    private string GenerateJwtToken(ApplicationUser user)
-    {
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-            new Claim(ClaimTypes.Name, user.FullName),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

@@ -6,8 +6,21 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using NLog;
+using NLog.Web;
+
+// Early init of NLog to allow startup and exception logging, before host is built
+var nlogger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+nlogger.Debug("init main");
+
+try
+{
 
 var builder = WebApplication.CreateBuilder(args);
+
+// NLog: Setup NLog for Dependency injection
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
 
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -39,6 +52,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
+        ClockSkew = TimeSpan.Zero, // No tolerance for expired tokens
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
@@ -46,12 +60,35 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<TokenService>();
+
+// Add AutoMapper
+builder.Services.AddAutoMapper(typeof(Program));
+
+// Add Health Checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>("db", tags: new[] { "ready" });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Initialize database and seed data
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<DbInitializer>>();
+    try
+    {
+        await DbInitializer.InitializeAsync(services, logger);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while initializing the database");
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -65,4 +102,21 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Map Health Check endpoints
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready");
+
 app.Run();
+
+}
+catch (Exception exception)
+{
+    // NLog: catch setup errors
+    nlogger.Error(exception, "Stopped program because of exception");
+    throw;
+}
+finally
+{
+    // Ensure to flush and stop internal timers/threads before application-exit (Avoid segmentation fault on Linux)
+    LogManager.Shutdown();
+}

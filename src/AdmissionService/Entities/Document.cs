@@ -1,5 +1,10 @@
 namespace AdmissionService.Entities;
 
+/// <summary>
+/// Abstract base class for applicant documents.
+/// Represents a personal document (passport, education document, etc.)
+/// and references the physical file scan/copy.
+/// </summary>
 public abstract class Document
 {
     public Guid Id { get; set; }
@@ -10,4 +15,5 @@ public abstract class Document
 
     // Navigation properties
     public Applicant Applicant { get; set; } = null!;
+    public File File { get; set; } = null!;
 }

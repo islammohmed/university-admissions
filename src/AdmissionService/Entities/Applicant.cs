@@ -11,6 +11,8 @@ public class Applicant
     public Gender Gender { get; set; }
     public string Citizenship { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public AdmissionStatus Status { get; set; } = AdmissionStatus.UnderReview;
+    public DateTime AppliedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties

@@ -41,7 +41,7 @@ public class Worker : BackgroundService
         var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
 
         var pendingNotifications = await dbContext.Notifications
-            .Where(n => !n.IsSent && n.RetryCount < 3)
+            .Where(n => n.Status == "Pending" || (n.Status == "Failed" && n.RetryCount < 3))
             .OrderBy(n => n.CreatedAt)
             .Take(10)
             .ToListAsync(cancellationToken);
@@ -49,22 +49,23 @@ public class Worker : BackgroundService
         foreach (var notification in pendingNotifications)
         {
             _logger.LogInformation("Processing notification {Id} for {Email}", 
-                notification.Id, notification.UserEmail);
+                notification.Id, notification.To);
 
             var success = await emailService.SendEmailAsync(
-                notification.UserEmail,
-                "University Admissions Notification",
-                notification.Message);
+                notification.To,
+                notification.Subject,
+                notification.Body);
 
             if (success)
             {
-                notification.IsSent = true;
+                notification.Status = "Sent";
                 notification.SentAt = DateTime.UtcNow;
                 _logger.LogInformation("Successfully sent notification {Id}", notification.Id);
             }
             else
             {
                 notification.RetryCount++;
+                notification.Status = "Failed";
                 notification.ErrorMessage = "Failed to send email";
                 _logger.LogWarning("Failed to send notification {Id}, retry count: {RetryCount}", 
                     notification.Id, notification.RetryCount);

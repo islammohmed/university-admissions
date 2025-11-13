@@ -2,6 +2,10 @@ using Shared.Contracts.Enums;
 
 namespace AdmissionService.Entities;
 
+/// <summary>
+/// Represents an admission application submitted by an applicant.
+/// Contains all necessary information for processing an admission.
+/// </summary>
 public class ApplicantAdmission
 {
     public Guid Id { get; set; }
@@ -16,4 +20,9 @@ public class ApplicantAdmission
     public Applicant Applicant { get; set; } = null!;
     public Manager? Manager { get; set; }
     public EducationProgram EducationProgram { get; set; } = null!;
+    
+    /// <summary>
+    /// Programs selected by applicant with priorities
+    /// </summary>
+    public ICollection<AdmissionProgram> AdmissionPrograms { get; set; } = new List<AdmissionProgram>();
 }

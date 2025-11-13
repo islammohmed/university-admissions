@@ -3,12 +3,13 @@ namespace NotificationService.Entities;
 public class Notification
 {
     public Guid Id { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string UserEmail { get; set; } = string.Empty;
+    public string To { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string? ApplicantId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public bool IsSent { get; set; } = false;
     public DateTime? SentAt { get; set; }
+    public string Status { get; set; } = "Pending"; // Pending, Sent, Failed
     public int RetryCount { get; set; } = 0;
     public string? ErrorMessage { get; set; }
 }
