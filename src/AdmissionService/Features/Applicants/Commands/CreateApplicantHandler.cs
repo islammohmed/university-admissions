@@ -24,6 +24,7 @@ public class CreateApplicantHandler : IRequestHandler<CreateApplicantCommand, Ap
             Gender = request.Gender,
             Citizenship = request.Citizenship,
             PhoneNumber = request.PhoneNumber,
+            AppliedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
         };
 

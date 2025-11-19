@@ -9,13 +9,13 @@ namespace AdmissionService.Features.Admissions.Commands;
 public class UpdateAdmissionStatusHandler : IRequestHandler<UpdateAdmissionStatusCommand, bool>
 {
     private readonly AdmissionDbContext _context;
-    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IPublishEndpoint? _publishEndpoint;
     private readonly ILogger<UpdateAdmissionStatusHandler> _logger;
 
     public UpdateAdmissionStatusHandler(
         AdmissionDbContext context,
-        IPublishEndpoint publishEndpoint,
-        ILogger<UpdateAdmissionStatusHandler> logger)
+        ILogger<UpdateAdmissionStatusHandler> logger,
+        IPublishEndpoint? publishEndpoint = null)
     {
         _context = context;
         _publishEndpoint = publishEndpoint;
@@ -43,28 +43,37 @@ public class UpdateAdmissionStatusHandler : IRequestHandler<UpdateAdmissionStatu
         await _context.SaveChangesAsync(cancellationToken);
 
         // Publish event to notify applicant of status change
-        try
+        if (_publishEndpoint != null)
         {
-            await _publishEndpoint.Publish(new ApplicantStatusChangedEvent
+            try
             {
-                ApplicantId = admission.ApplicantId,
-                OldStatus = oldStatus,
-                NewStatus = admission.Status.ToString(),
-                Timestamp = DateTime.UtcNow,
-                ApplicantEmail = admission.Applicant?.Email ?? string.Empty,
-                ApplicantName = admission.Applicant?.FullName ?? string.Empty
-            }, cancellationToken);
+                await _publishEndpoint.Publish(new ApplicantStatusChangedEvent
+                {
+                    ApplicantId = admission.ApplicantId,
+                    OldStatus = oldStatus,
+                    NewStatus = admission.Status.ToString(),
+                    Timestamp = DateTime.UtcNow,
+                    ApplicantEmail = admission.Applicant?.Email ?? string.Empty,
+                    ApplicantName = admission.Applicant?.FullName ?? string.Empty
+                }, cancellationToken);
 
-            _logger.LogInformation(
-                "Published ApplicantStatusChangedEvent for Admission {AdmissionId}", 
-                admission.Id);
+                _logger.LogInformation(
+                    "Published ApplicantStatusChangedEvent for Admission {AdmissionId}", 
+                    admission.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, 
+                    "Failed to publish ApplicantStatusChangedEvent for Admission {AdmissionId}", 
+                    admission.Id);
+                // Don't fail the operation if event publishing fails
+            }
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, 
-                "Failed to publish ApplicantStatusChangedEvent for Admission {AdmissionId}", 
+            _logger.LogWarning(
+                "MassTransit not configured - skipping event publishing for Admission {AdmissionId}", 
                 admission.Id);
-            // Don't fail the operation if event publishing fails
         }
 
         return true;

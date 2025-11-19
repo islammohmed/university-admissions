@@ -40,6 +40,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Add MassTransit with RabbitMQ
+// Commented out to run without RabbitMQ/Docker
+/*
 builder.Services.AddMassTransit(x =>
 {
     // Register consumers
@@ -57,6 +59,7 @@ builder.Services.AddMassTransit(x =>
         cfg.ConfigureEndpoints(context);
     });
 });
+*/
 
 // Add worker for background processing
 builder.Services.AddHostedService<Worker>();
